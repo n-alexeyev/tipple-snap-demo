@@ -28,7 +28,8 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 #stage{width:393px;height:852px;position:relative;flex:none;transform-origin:center}
 .phone{position:absolute;inset:0;border-radius:54px;overflow:hidden;background:#0c0c10;
   box-shadow:0 0 0 10px #121214,0 0 0 11px #3a3a40,0 40px 90px rgba(40,30,90,.35)}
-body.bare{background:#5462B0;touch-action:manipulation;overscroll-behavior:none}
+/* overflow:hidden on body clips to iOS's short home-screen viewport, so let the fixed stage paint past it */
+html.bare,body.bare{overflow:visible;background:var(--canvas,#5462B0);touch-action:manipulation;overscroll-behavior:none}
 body.bare .phone{border-radius:0;box-shadow:none}
 body.bare .status{display:none}
 #safe{position:fixed;top:0;height:env(safe-area-inset-top,0px);width:0;visibility:hidden}
@@ -360,6 +361,7 @@ let det = null, qty = 0;
 function fit() {
   const bare = innerWidth < 500, st = $('#stage');
   document.body.classList.toggle('bare', bare);
+  document.documentElement.classList.toggle('bare', bare);
   let s, H, top;
   if (bare) {
     // iOS home-screen mode under-reports innerHeight (no home-indicator strip), so take the largest real measure
@@ -444,9 +446,13 @@ function countUp(el, from, to, ms = 700) {
 }
 renderDays(); renderHome();
 
+// page canvas under the stage matches each screen's bottom edge, in case iOS leaves a strip uncovered
+const CANVAS = { home: '#7DBE64', camera: '#000', scan: '#C9A8D9' };
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  document.documentElement.style.setProperty('--canvas', CANVAS[id]);
 }
+show('home');
 
 /* ---------- camera ---------- */
 $('#chips').innerHTML = CHIPS.map(([k, e, l]) => `<button class="chip${k === state.cat ? ' on' : ''}" data-k="${k}"><em>${e}</em>${l}</button>`).join('');
