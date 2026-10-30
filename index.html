@@ -32,6 +32,8 @@ body.bare{background:#5462B0;touch-action:manipulation;overscroll-behavior:none}
 body.bare .phone{border-radius:0;box-shadow:none}
 body.bare .status{display:none}
 #safe{position:fixed;top:0;height:env(safe-area-inset-top,0px);width:0;visibility:hidden}
+#vp{position:fixed;top:0;left:0;width:100vw;height:100lvh;visibility:hidden;pointer-events:none}
+body.bare #stage{position:fixed;top:0;left:0;transform-origin:0 0}
 
 .screen{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .35s}
 .screen.active{opacity:1;pointer-events:auto}
@@ -215,7 +217,7 @@ body.short .retake{margin-top:4px}
 </style>
 </head>
 <body>
-<i id="safe"></i>
+<i id="safe"></i><i id="vp"></i>
 <div id="stage"><div class="phone">
 
   <!-- HOME -->
@@ -355,7 +357,10 @@ function fit() {
   document.body.classList.toggle('bare', bare);
   let s, H, top;
   if (bare) {
-    s = innerWidth / 393; H = Math.round(innerHeight / s);
+    // iOS home-screen mode under-reports innerHeight (no home-indicator strip), so take the largest real measure
+    const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+    const vh = standalone ? Math.max(innerHeight, $('#vp').getBoundingClientRect().height, screen.height) : innerHeight;
+    s = innerWidth / 393; H = Math.round(vh / s);
     top = Math.max(54, $('#safe').offsetHeight / s); // keep clear of the real iOS status bar
   } else {
     s = Math.min((innerWidth - 48) / 393, (innerHeight - 48) / 852); H = 852; top = 54;
@@ -372,7 +377,8 @@ function fit() {
     .forEach(([k, v]) => st.style.setProperty(k, v + 'px'));
   st.style.setProperty('--ls', ls);
 }
-addEventListener('resize', fit); fit();
+addEventListener('resize', fit); addEventListener('orientationchange', () => setTimeout(fit, 300));
+fit(); addEventListener('load', fit); setTimeout(fit, 500);
 
 /* gear = full screen toggle (Android/desktop), Add to Home Screen tip on iPhone */
 function toggleFullscreen() {
