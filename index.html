@@ -109,7 +109,8 @@ body.bare #stage{position:fixed;top:0;left:0;transform-origin:0 0}
   display:grid;place-items:center;z-index:5;backdrop-filter:blur(10px)}
 .src{position:absolute;top:calc(var(--top) + 10px);right:16px;height:32px;border-radius:16px;padding:0 12px 0 10px;background:rgba(255,255,255,.16);
   color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;z-index:5;backdrop-filter:blur(10px)}
-.src i{width:8px;height:8px;border-radius:50%;background:#bbb}
+.src i{width:8px;height:8px;border-radius:50%;background:#bbb;display:none}
+.src.live i{display:block}
 .src.live i{background:#ff4d4d;box-shadow:0 0 0 3px rgba(255,77,77,.3)}
 .cam-title{position:absolute;top:calc(var(--top) + 68px);left:0;right:0;text-align:center;color:#fff;font-weight:700;font-size:24px;line-height:1.15}
 .cam-title small{display:block;font-weight:500;font-size:15px;opacity:.75;margin-top:6px}
@@ -122,6 +123,8 @@ body.bare #stage{position:fixed;top:0;left:0;transform-origin:0 0}
 .cam-bottom{position:absolute;left:0;right:0;bottom:46px;display:flex;align-items:center;justify-content:space-between;padding:0 40px}
 .gallery,.cam-sp{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.16);cursor:pointer}
 .cam-sp{visibility:hidden}
+#camera.live .cam-sp{visibility:visible}
+#video.mirror{transform:scaleX(-1)}
 .shutter{width:82px;height:82px;border-radius:50%;border:5px solid #fff;display:grid;place-items:center}
 .shutter:after{content:"";width:64px;height:64px;border-radius:50%;background:#fff;transition:transform .15s}
 .shutter:active:after{transform:scale(.88)}
@@ -266,7 +269,7 @@ body.short .retake{margin-top:4px}
     </svg>
     <div class="status"></div>
     <button class="cam-x" id="camClose" aria-label="Close"><svg width="16" height="16" viewBox="0 0 16 16" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button>
-    <button class="src" id="srcBtn"><i></i><span>Demo video</span></button>
+    <button class="src" id="srcBtn"><i></i><span>📷 Use camera</span></button>
     <p class="cam-title">Fit your drink in the circle<small>Tipple will count it for you</small></p>
     <div class="chips" id="chips"></div>
     <div class="cam-bottom">
@@ -275,7 +278,9 @@ body.short .retake{margin-top:4px}
         <input type="file" id="file" accept="image/*" hidden>
       </label>
       <button class="shutter" id="shutter" aria-label="Take photo"></button>
-      <span class="cam-sp"></span>
+      <button class="cam-sp" id="flipBtn" aria-label="Switch camera">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 8.5V7a2 2 0 0 0-2-2h-2.2l-1.4-2h-4.8L8.2 5H6a2 2 0 0 0-2 2v1.5"/><path d="M4 15.5V17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5"/><path d="M8.5 12a3.5 3.5 0 0 1 6.2-2.2M15.5 12a3.5 3.5 0 0 1-6.2 2.2"/><path d="M15 7.5v2.5h-2.5M9 16.5V14h2.5"/></svg>
+      </button>
     </div>
   </section>
 
@@ -336,7 +341,7 @@ const $ = s => document.querySelector(s);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* ---------- state ---------- */
-const state = { goal: 20, enjoyed: 6, coins: 60, today: 3, todayDrinks: 0, cat: 'auto', src: 'demo', stream: null };
+const state = { goal: 20, enjoyed: 6, coins: 60, today: 3, todayDrinks: 0, cat: 'auto', src: 'demo', stream: null, facing: 'environment', pref: null };
 const DAYS = ['drink', 'clear', 'clear', 'today', 'future', 'future', 'future'];
 
 /* mock "AI" results per category */
@@ -495,34 +500,48 @@ function useVideo() { return state.src !== 'live' && (state.cat === 'auto' || st
 function playDemo() { dv.play().catch(() => {}); db.play().catch(() => {}); }
 function pauseDemo() { dv.pause(); db.pause(); }
 function renderFeed() {
-  const live = state.src === 'live', vid = useVideo();
+  const live = state.src === 'live', vid = state.src === 'demo' && useVideo();
+  $('#camera').classList.toggle('live', live);
   $('#demoWrap').style.display = vid ? 'block' : 'none';
-  $('#feed').style.display = live || vid ? 'none' : 'block';
   $('#video').style.display = live ? 'block' : 'none';
-  if (!live && !vid) $('#feed').innerHTML = scene(catKey());
+  $('#feed').style.display = state.src === 'demo' && !vid ? 'block' : 'none';
+  if (state.src === 'demo' && !vid) $('#feed').innerHTML = scene(catKey());
   vid ? playDemo() : pauseDemo();
 }
 
 async function setSource(src) {
   const label = $('#srcBtn span');
   if (src === 'live') {
+    stopStream();
     try {
-      state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-      $('#video').srcObject = state.stream;
-      state.src = 'live'; label.textContent = 'Live camera'; $('#srcBtn').classList.add('live');
+      state.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: state.facing }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+      const v = $('#video');
+      v.srcObject = state.stream; v.play().catch(() => {});
+      v.classList.toggle('mirror', state.facing === 'user');
+      state.src = 'live'; label.textContent = '▶ Demo video'; $('#srcBtn').classList.add('live');
       renderFeed();
       return;
-    } catch (e) { label.textContent = 'No camera access'; setTimeout(() => label.textContent = 'Demo video', 1600); }
+    } catch (e) { state.pref = 'demo'; label.textContent = 'No camera access'; setTimeout(() => label.textContent = '📷 Use camera', 1800); }
   }
   stopStream();
   state.src = 'demo'; $('#srcBtn').classList.remove('live');
-  if (src === 'demo') label.textContent = 'Demo video';
+  if (src === 'demo') label.textContent = '📷 Use camera';
   renderFeed();
 }
 function stopStream() { if (state.stream) { state.stream.getTracks().forEach(t => t.stop()); state.stream = null; } }
-$('#srcBtn').onclick = () => setSource(state.src === 'live' ? 'demo' : 'live');
+$('#srcBtn').onclick = () => { state.pref = state.src === 'live' ? 'demo' : 'live'; setSource(state.pref); };
+$('#flipBtn').onclick = () => { state.facing = state.facing === 'user' ? 'environment' : 'user'; setSource('live'); };
 
-function openCamera() { setSource('demo'); show('camera'); }
+/* phones open the real camera by default (needs https); desktop starts on the demo video.
+   Whatever the viewer picks with the source button sticks for the session. */
+function canLive() { return isSecureContext && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+function openCamera() {
+  show('camera');
+  const want = state.pref || (document.body.classList.contains('bare') && canLive() ? 'live' : 'demo');
+  if (want === 'live' && !state.stream) { state.src = 'pending'; renderFeed(); }
+  setSource(want);
+}
 $('#fab').onclick = openCamera;
 $('#camClose').onclick = () => { stopStream(); pauseDemo(); show('home'); };
 
@@ -534,8 +553,10 @@ function drawCover(ctx, src, sw, sh, W, H) {
 function captureVideo() {
   const v = $('#video'), c = document.createElement('canvas');
   c.width = 786; c.height = 2 * stageH();
-  drawCover(c.getContext('2d'), v, v.videoWidth, v.videoHeight, c.width, c.height);
-  return c.toDataURL('image/jpeg', .85);
+  const x = c.getContext('2d');
+  if (v.classList.contains('mirror')) { x.translate(c.width, 0); x.scale(-1, 1); }
+  drawCover(x, v, v.videoWidth, v.videoHeight, c.width, c.height);
+  return c.toDataURL('image/jpeg', .88);
 }
 /* freeze the demo video the way it looks on screen: blurred backdrop + sharp lens (2x of CSS px) */
 function captureDemo() {
@@ -566,7 +587,8 @@ function captureDemo() {
 }
 $('#shutter').onclick = () => {
   let url;
-  if (state.src === 'live' && state.stream) { url = captureVideo(); state.detKey = catKey(); }
+  if (state.src === 'pending') return; // waiting for camera permission
+  if (state.src === 'live' && state.stream && $('#video').videoWidth) { url = captureVideo(); state.detKey = catKey(); }
   else if (useVideo()) { url = captureDemo(); state.detKey = 'pints'; }
   else { url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(scene(catKey())); state.detKey = catKey(); }
   analyze(url);
