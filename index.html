@@ -33,7 +33,6 @@ html.bare,body.bare{overflow:visible;background:var(--canvas,#5462B0);touch-acti
 body.bare .phone{border-radius:0;box-shadow:none}
 body.bare .status{display:none}
 #safe{position:fixed;top:0;height:env(safe-area-inset-top,0px);width:0;visibility:hidden}
-#vp{position:fixed;top:0;left:0;width:100vw;height:100lvh;visibility:hidden;pointer-events:none}
 body.bare #stage{position:fixed;top:0;left:0;transform-origin:0 0}
 
 .screen{position:absolute;inset:0;opacity:0;pointer-events:none;transition:opacity .35s}
@@ -221,7 +220,7 @@ body.short .retake{margin-top:4px}
 </style>
 </head>
 <body>
-<i id="safe"></i><i id="vp"></i>
+<i id="safe"></i>
 <div id="stage"><div class="phone">
 
   <!-- HOME -->
@@ -364,10 +363,8 @@ function fit() {
   document.documentElement.classList.toggle('bare', bare);
   let s, H, top;
   if (bare) {
-    // iOS home-screen mode under-reports innerHeight (no home-indicator strip), so take the largest real measure
-    const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
-    const vh = standalone ? Math.max(innerHeight, $('#vp').getBoundingClientRect().height, screen.height) : innerHeight;
-    s = innerWidth / 393; H = Math.round(vh / s);
+    // iOS home-screen mode doesn't paint the bottom ~64pt, so fit to innerHeight; the strip gets --canvas colour
+    s = innerWidth / 393; H = Math.round(innerHeight / s);
     top = Math.max(54, $('#safe').offsetHeight / s); // keep clear of the real iOS status bar
   } else {
     s = Math.min((innerWidth - 48) / 393, (innerHeight - 48) / 852); H = 852; top = 54;
@@ -447,7 +444,7 @@ function countUp(el, from, to, ms = 700) {
 renderDays(); renderHome();
 
 // page canvas under the stage matches each screen's bottom edge, in case iOS leaves a strip uncovered
-const CANVAS = { home: '#7DBE64', camera: '#000', scan: '#C9A8D9' };
+const CANVAS = { home: '#78B460', camera: '#000', scan: '#C9A8D9' };
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
   document.documentElement.style.setProperty('--canvas', CANVAS[id]);
@@ -528,7 +525,7 @@ async function setSource(src) {
       state.src = 'live'; label.textContent = '▶ Demo video'; $('#srcBtn').classList.add('live');
       renderFeed();
       return;
-    } catch (e) { state.pref = 'demo'; label.textContent = 'No camera access'; setTimeout(() => label.textContent = '📷 Use camera', 1800); }
+    } catch (e) { state.pref = 'demo'; label.textContent = 'No camera: ' + (e.name || 'error').replace('Error', ''); setTimeout(() => label.textContent = '📷 Use camera', 3500); }
   }
   stopStream();
   state.src = 'demo'; $('#srcBtn').classList.remove('live');
